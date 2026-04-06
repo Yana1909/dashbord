@@ -11,6 +11,7 @@ export async function extractBrandingColors(imageUrl: string): Promise<string[]>
     img.src = imageUrl;
     
     img.onload = () => {
+      // @ts-expect-error - ColorThief has inconsistent typing between browser and node
       const colorThief = new ColorThief();
       try {
         const palette = colorThief.getPalette(img, 5);
