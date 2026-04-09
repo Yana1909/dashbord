@@ -53,9 +53,12 @@ export function Dashboard() {
   }
 
   // Use dimTable (filtered by dimensions only) for trend comparison and KPI cards
-  const metricSummaries = metrics.map(m =>
-    computeMetricSummary(dimTable, tableMetadata!, m, dateCol, currentYear, currentPeriod, periodType)
-  );
+  const metricSummaries = React.useMemo(() => {
+    if (!dimTable || !tableMetadata) return [];
+    return metrics.map(m =>
+        computeMetricSummary(dimTable, tableMetadata, m, dateCol, currentYear, currentPeriod, periodType)
+    );
+  }, [dimTable, tableMetadata, metrics, dateCol, currentYear, currentPeriod, periodType]);
 
   // Also compute unique dimension count for the filtered table
   const dim = tableMetadata?.dimensions[0];

@@ -80,7 +80,9 @@ export function normalizeData(data: any[]): any[] {
   return data.map(row => {
     const newRow: any = {};
     Object.entries(row).forEach(([key, val]) => {
-      const normalizedKey = renameMap[key] || key;
+      // Trim header keys to avoid hidden space issues
+      const trimmedKey = key.trim();
+      const normalizedKey = renameMap[trimmedKey] || trimmedKey;
       newRow[normalizedKey] = val;
     });
     return newRow;

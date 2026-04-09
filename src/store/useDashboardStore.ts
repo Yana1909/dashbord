@@ -71,25 +71,31 @@ interface DashboardState {
 function applyDimensionFilters(table: any, filters: Record<string, string[]>): any {
   if (!table) return table;
   let result = table;
-  Object.entries(filters).forEach(([col, vals]) => {
-    if (vals && vals.length > 0) {
-      try {
-        const valsSet = new Set(vals.map(v => String(v).trim()));
-        const rows = result.objects();
-        const filteredRows = rows.filter((d: any) => {
-          const val = d[col];
-          const strVal = (val === undefined || val === null || String(val).trim() === '') 
-            ? 'Не вказано' 
-            : String(val).trim();
-          return valsSet.has(strVal);
-        });
-        result = filteredRows.length > 0 ? aq.from(filteredRows) : aq.from([]);
-      } catch (e) {
-        console.error('applyDimensionFilters error:', e);
-      }
-    }
-  });
-  return result;
+  
+  // Convert filters into a more reliable format for matching
+  const filterEntries = Object.entries(filters).filter(([_, vals]) => vals && vals.length > 0);
+  if (filterEntries.length === 0) return table;
+
+  try {
+    const rows = result.objects();
+    const filteredRows = rows.filter((d: any) => {
+      // All filters must match (AND logic between columns)
+      return filterEntries.every(([col, vals]) => {
+        const rowVal = d[col];
+        const normalizedRowVal = (rowVal === undefined || rowVal === null || String(rowVal).trim() === '') 
+          ? 'не вказано' 
+          : String(rowVal).trim().toLowerCase();
+        
+        // Match against any of the selected values (OR logic within column)
+        return vals.some(v => String(v).trim().toLowerCase() === normalizedRowVal);
+      });
+    });
+    
+    return filteredRows.length > 0 ? aq.from(filteredRows) : aq.from([]);
+  } catch (e) {
+    console.error('applyDimensionFilters error:', e);
+    return result;
+  }
 }
 
 function applyAllFilters(

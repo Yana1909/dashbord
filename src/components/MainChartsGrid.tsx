@@ -33,11 +33,11 @@ export function MainChartsGrid() {
     availablePeriods,
   } = useDashboardStore();
   
-  // Dynamic visible count based on period type - significantly increased to show whole multi-year reports
+  // Dynamic visible count based on period type
   const visibleCount = useMemo(() => {
-    if (periodType === 'month') return 36;   // 3 years at once
-    if (periodType === 'quarter') return 16;  // 4 years at once
-    return 10;                               // 10 years at once
+    if (periodType === 'month') return 24;    // 2 years
+    if (periodType === 'quarter') return 8;   // 2 years (8 quarters)
+    return 5;                                // 5 years
   }, [periodType]);
 
   const [scrollIndex, setScrollIndex] = useState(0);
