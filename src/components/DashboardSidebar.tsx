@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { Search, Upload, Filter, X, ChevronRight, LayoutDashboard, CalendarDays, BarChart2 } from 'lucide-react';
 import { useDashboardStore } from '../store/useDashboardStore';
 import { parseExcel, parsePbix } from '../lib/data-engine';
@@ -66,19 +66,24 @@ export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClos
   const selectedDim = selectedDimension || (tableMetadata?.dimensions?.[0]);
 
   // Dimensions that are good for filtering (not too many values, OR it's the currently selected grouping)
-  const categoricalCols = tableMetadata?.dimensions.filter((col) => {
-    try {
-      if (col === selectedDim) return true; // Always include the current grouping for drill-down
-      return rawTable && new Set(rawTable.array(col)).size <= 25;
-    } catch { return false; }
-  }) ?? [];
+  const { categoricalCols, sortedFilters } = useMemo(() => {
+    if (!tableMetadata || !rawTable) return { categoricalCols: [], sortedFilters: [] };
 
-  // Sort categoricalCols so the selected group is always at the top
-  const sortedFilters = [...categoricalCols].sort((a, b) => {
-    if (a === selectedDim) return -1;
-    if (b === selectedDim) return 1;
-    return a.localeCompare(b);
-  });
+    const cats = tableMetadata.dimensions.filter((col) => {
+      try {
+        if (col === selectedDim) return true; // Always include the current grouping for drill-down
+        return new Set(rawTable.array(col)).size <= 25;
+      } catch { return false; }
+    });
+
+    const sorted = [...cats].sort((a, b) => {
+      if (a === selectedDim) return -1;
+      if (b === selectedDim) return 1;
+      return a.localeCompare(b);
+    });
+
+    return { categoricalCols: cats, sortedFilters: sorted };
+  }, [tableMetadata, rawTable, selectedDim]);
 
   const hasAnyFilter = Object.keys(dimensionFilters).length > 0;
   const hasPeriods = availablePeriods.length > 0;
@@ -189,7 +194,7 @@ export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClos
                         )}
                     </div>
                     <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 custom-scroll">
-                        {sortedFilters.map(col => {
+                        {sortedFilters.map((col: string) => {
                             const uniqueValues = Array.from(new Set(rawTable!.array(col))).filter(Boolean);
                             const activeValues = dimensionFilters[col] || [];
                             const isPrimary = col === selectedDim;

@@ -8,6 +8,7 @@ import { KPICard } from './KPICard';
 import { MainChartsGrid } from './MainChartsGrid';
 import { ReportLibrary } from './ReportLibrary';
 import { computeMetricSummary, generateMockData } from '../lib/data-engine';
+import { ErrorBoundary } from './ErrorBoundary';
 
 /** Pick a Lucide icon and color for the i-th KPI */
 const KPI_CONFIG = [
@@ -135,7 +136,9 @@ export function Dashboard() {
               </div>
 
               {/* Charts */}
-              <MainChartsGrid />
+              <ErrorBoundary>
+                <MainChartsGrid />
+              </ErrorBoundary>
             </motion.div>
           )}
         </div>

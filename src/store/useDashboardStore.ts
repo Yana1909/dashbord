@@ -87,11 +87,8 @@ function applyAllFilters(
   // Apply dimension filters
   Object.entries(dimensionFilters).forEach(([col, vals]) => {
     if (vals.length > 0) {
-      const selectedVals = vals;
-      const colName = col;
       try {
-        const rows = table.objects().filter((d: any) => selectedVals.includes(String(d[colName])));
-        table = rows.length > 0 ? aq.from(rows) : aq.from([]);
+        table = table.filter(aq.escape((d: any) => vals.includes(String(d[col]))));
       } catch (e) {
         console.error('Filtering applyAllFilters error:', e);
       }

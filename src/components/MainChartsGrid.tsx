@@ -49,23 +49,28 @@ export function MainChartsGrid() {
   const stringDim = selectedDimension || tableMetadata.dimensions[0] || 'Category';
 
   // 1. Trend Line (Apply Dimension Filters only, ignore Period for full context)
-  let trendSourceTable = rawTable;
-  Object.entries(dimensionFilters).forEach(([col, vals]) => {
-    if (vals.length > 0) {
+  const timeSeriesDataFull = useMemo(() => {
+    let table = rawTable;
+    Object.entries(dimensionFilters).forEach(([col, vals]) => {
+      if (vals.length > 0) {
         try {
-            const rows = trendSourceTable.objects().filter((d: any) => vals.includes(String(d[col])));
-            trendSourceTable = rows.length > 0 ? aq.from(rows) : aq.from([]);
+          // Safe filtering with arquero
+          table = table.filter(aq.escape((d: any) => vals.includes(String(d[col]))));
         } catch (e) {
-            console.error('Filtering trendSourceTable error:', e);
+          console.error('Filtering trendSourceTable error:', e);
         }
-    }
-  });
+      }
+    });
 
-  const timeSeriesDataFull = dateCol
-    ? getTimeSeriesData(trendSourceTable, dateCol, [metric], periodType)
-    : [];
+    return dateCol
+      ? getTimeSeriesData(table, dateCol, [metric], periodType)
+      : [];
+  }, [rawTable, dimensionFilters, dateCol, metric, periodType]);
 
-  const timeSeriesDataRaw = timeSeriesDataFull.map(d => ({ ...d, 'Time Period': d.period }));
+  const timeSeriesDataRaw = useMemo(() => 
+    timeSeriesDataFull.map(d => ({ ...d, 'Time Period': d.period })),
+    [timeSeriesDataFull]
+  );
   
   // Apply scrolling/windowing
   const timeSeriesData = useMemo(() => {
@@ -85,59 +90,64 @@ export function MainChartsGrid() {
   // 2. Breakdown Data (Filtered)
   const TOP_N = 10;
   // Use a high limit (1000) to compute 'Others' correctly
-  const rawBreakdownFull = stringDim && metric
-    ? getBreakdownData(filteredTable, stringDim, metric, 1000) 
-    : [];
+  const { barChartData, donutData, totalAmount } = useMemo(() => {
+    const rawBreakdownFull = stringDim && metric
+      ? getBreakdownData(filteredTable, stringDim, metric, 1000) 
+      : [];
 
-  const topN = rawBreakdownFull.slice(0, TOP_N);
-  const othersValue = rawBreakdownFull.length > TOP_N 
-    ? rawBreakdownFull.slice(TOP_N).reduce((acc, d) => acc + d.value, 0)
-    : 0;
+    const topN = rawBreakdownFull.slice(0, TOP_N);
+    const othersValue = rawBreakdownFull.length > TOP_N 
+      ? rawBreakdownFull.slice(TOP_N).reduce((acc, d) => acc + d.value, 0)
+      : 0;
 
-  const barChartData = topN.map((d) => ({
-    name: d.name,
-    [metric]: d.value,
-  }));
+    const bcd = topN.map((d) => ({
+      name: d.name,
+      [metric]: d.value,
+    }));
 
-  // 3. Shares (Donut) with ABC Analysis
-  let donutData = topN.map((d) => ({
-    name: d.name,
-    amount: d.value,
-  }));
+    const dd = topN.map((d) => ({
+      name: d.name,
+      amount: d.value,
+    }));
 
-  if (othersValue > 0) {
-    donutData.push({
-        name: 'Others',
-        amount: othersValue
-    });
-  }
+    if (othersValue > 0) {
+      dd.push({
+          name: 'Інші',
+          amount: othersValue
+      });
+    }
 
-  const totalAmount = donutData.reduce((acc, d) => acc + d.amount, 0);
+    const total = dd.reduce((acc, d) => acc + d.amount, 0);
+
+    return { barChartData: bcd, donutData: dd, totalAmount: total };
+  }, [filteredTable, stringDim, metric]);
 
   // 4. YoY Data
-  let yoyData: Array<Record<string, any>> = [];
-  let prevYearNum: number | null = null;
-  let currentYearNum: number | null = null;
+  const { yoyData, currentYearNum, prevYearNum } = useMemo(() => {
+    if (!dateCol || !metric || !selectedPeriodKey) {
+      return { yoyData: [], currentYearNum: null, prevYearNum: null };
+    }
 
-  if (dateCol && metric && selectedPeriodKey) {
     const [yearStr, periodStr] = selectedPeriodKey.split('-');
-    currentYearNum = parseInt(yearStr, 10);
-    const periodValue = parseInt(periodStr, 10);
-    prevYearNum = currentYearNum - 1;
+    const curYear = parseInt(yearStr, 10);
+    const pValue = parseInt(periodStr, 10);
+    const pYear = curYear - 1;
 
-    const curTable = filterByPeriod(rawTable, dateCol, currentYearNum, periodValue, periodType);
-    const prevTable = filterByPeriod(rawTable, dateCol, prevYearNum, periodValue, periodType);
+    const curTable = filterByPeriod(rawTable, dateCol, curYear, pValue, periodType);
+    const prevTable = filterByPeriod(rawTable, dateCol, pYear, pValue, periodType);
 
     const curBD = getBreakdownData(curTable, stringDim, metric, 8);
     const prevBD = getBreakdownData(prevTable, stringDim, metric, 8);
 
     const allNames = Array.from(new Set([...curBD.map(d => d.name), ...prevBD.map(d => d.name)]));
-    yoyData = allNames.map(name => ({
+    const data = allNames.map(name => ({
       name,
-      [`${currentYearNum}`]: curBD.find(d => d.name === name)?.value ?? 0,
-      [`${prevYearNum}`]: prevBD.find(d => d.name === name)?.value ?? 0,
+      [`${curYear}`]: curBD.find(d => d.name === name)?.value ?? 0,
+      [`${pYear}`]: prevBD.find(d => d.name === name)?.value ?? 0,
     }));
-  }
+
+    return { yoyData: data, currentYearNum: curYear, prevYearNum: pYear };
+  }, [rawTable, dateCol, metric, selectedPeriodKey, stringDim, periodType]);
 
   const selectedPeriodEntry = selectedPeriodKey
     ? availablePeriods.find((p) => p.sortKey === selectedPeriodKey)
@@ -215,7 +225,7 @@ export function MainChartsGrid() {
                 Топ значень за <span className="text-primary font-bold">{selectedLabel}</span>
             </p>
           </div>
-          <div key={`${metric}-${stringDim}-${selectedPeriodKey}`} className="flex-1 w-full">
+          <div className="flex-1 w-full">
             <BarChart
               className="h-[320px]"
               data={barChartData}
@@ -242,7 +252,7 @@ export function MainChartsGrid() {
             </p>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center gap-10">
-            <div key={`${metric}-${stringDim}-donut`} className="relative w-full aspect-square max-w-[240px]">
+            <div className="relative w-full aspect-square max-w-[240px]">
                 <DonutChart
                   className="w-full h-full"
                   data={donutData}
@@ -292,7 +302,7 @@ export function MainChartsGrid() {
                     </div>
                 </div>
             </div>
-            <div key={`${currentYearNum}-${prevYearNum}-${metric}`} className="w-full">
+            <div className="w-full">
               <BarChart
                 className="h-[400px] mt-4"
                 data={yoyData}
