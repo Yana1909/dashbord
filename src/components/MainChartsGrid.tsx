@@ -62,7 +62,7 @@ export function MainChartsGrid() {
   }, [dimTable, dateCol, metric, periodType]);
 
   const timeSeriesDataRaw = useMemo(() => 
-    timeSeriesDataFull.map(d => ({ ...d, 'Time Period': d.period })),
+    timeSeriesDataFull.map((d: any) => ({ ...d, 'Time Period': d.period })),
     [timeSeriesDataFull]
   );
 
