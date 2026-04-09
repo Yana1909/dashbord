@@ -27,6 +27,7 @@ export function Dashboard() {
     selectedMetric,
     periodType,
     selectedPeriodKey,
+    dashboardId,
   } = useDashboardStore();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
@@ -97,6 +98,7 @@ export function Dashboard() {
             </div>
           ) : (
             <motion.div
+              key={dashboardId}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}

@@ -215,18 +215,20 @@ export function MainChartsGrid() {
                 Топ значень за <span className="text-primary font-bold">{selectedLabel}</span>
             </p>
           </div>
-          <BarChart
-            className="h-[320px]"
-            data={barChartData}
-            index="name"
-            categories={[metric]}
-            colors={['emerald']}
-            yAxisWidth={150} 
-            layout="vertical"
-            showAnimation={true}
-            showGridLines={false}
-            valueFormatter={(number: number) => number.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-          />
+          <div key={`${metric}-${stringDim}-${selectedPeriodKey}`} className="flex-1 w-full">
+            <BarChart
+              className="h-[320px]"
+              data={barChartData}
+              index="name"
+              categories={[metric]}
+              colors={['emerald']}
+              yAxisWidth={150} 
+              layout="vertical"
+              showAnimation={false}
+              showGridLines={false}
+              valueFormatter={(number: number) => number.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            />
+          </div>
         </Card>
 
         {/* Shares Distribution (Right) - Donut with ABC Analysis */}
@@ -240,14 +242,14 @@ export function MainChartsGrid() {
             </p>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center gap-10">
-            <div className="relative w-full aspect-square max-w-[240px]">
+            <div key={`${metric}-${stringDim}-donut`} className="relative w-full aspect-square max-w-[240px]">
                 <DonutChart
                   className="w-full h-full"
                   data={donutData}
                   category="amount"
                   index="name"
                   colors={MODERN_PALETTE as any}
-                  showAnimation={true}
+                  showAnimation={false}
                   variant="pie"
                   valueFormatter={(number: number) => {
                     if (totalAmount === 0) return '0%';
@@ -290,18 +292,20 @@ export function MainChartsGrid() {
                     </div>
                 </div>
             </div>
-            <BarChart
-              className="h-[400px] mt-4"
-              data={yoyData}
-              index="name"
-              categories={[String(currentYearNum), String(prevYearNum)]}
-              colors={['emerald', 'orange']}
-              yAxisWidth={150}
-              layout="vertical"
-              showAnimation={true}
-              showGridLines={false}
-              valueFormatter={(number: number) => number.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-            />
+            <div key={`${currentYearNum}-${prevYearNum}-${metric}`} className="w-full">
+              <BarChart
+                className="h-[400px] mt-4"
+                data={yoyData}
+                index="name"
+                categories={[String(currentYearNum), String(prevYearNum)]}
+                colors={['emerald', 'orange']}
+                yAxisWidth={150}
+                layout="vertical"
+                showAnimation={false}
+                showGridLines={false}
+                valueFormatter={(number: number) => number.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              />
+            </div>
          </Card>
       )}
 
