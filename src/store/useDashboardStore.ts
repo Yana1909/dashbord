@@ -23,7 +23,6 @@ export interface SavedReportMeta {
 interface DashboardState {
   // Data
   rawTable: any | null;
-  filteredTable: any | null;
   tableMetadata: TableMetadata | null;
   dataLoaded: boolean;
 
@@ -43,6 +42,10 @@ interface DashboardState {
 
   // Dimension filters (categorical)
   dimensionFilters: Record<string, string[]>;
+
+  // Filtered tables
+  filteredTable: any | null; // All filters (Dimension + Period)
+  dimTable: any | null;      // Dimension filters only (for trends/KPI comparison)
 
   // Dashboard meta
   dashboardId: string;
@@ -65,42 +68,57 @@ interface DashboardState {
   resetDashboard: () => void;
 }
 
+function applyDimensionFilters(table: any, filters: Record<string, string[]>): any {
+  if (!table) return table;
+  let result = table;
+  Object.entries(filters).forEach(([col, vals]) => {
+    if (vals && vals.length > 0) {
+      try {
+        const valsSet = new Set(vals.map(v => String(v).trim()));
+        const rows = result.objects();
+        const filteredRows = rows.filter((d: any) => {
+          const val = d[col];
+          const strVal = (val === undefined || val === null || String(val).trim() === '') 
+            ? 'Не вказано' 
+            : String(val).trim();
+          return valsSet.has(strVal);
+        });
+        result = filteredRows.length > 0 ? aq.from(filteredRows) : aq.from([]);
+      } catch (e) {
+        console.error('applyDimensionFilters error:', e);
+      }
+    }
+  });
+  return result;
+}
+
 function applyAllFilters(
   rawTable: any,
   metadata: TableMetadata | null,
   periodType: PeriodType,
   selectedPeriodKey: string | null,
   dimensionFilters: Record<string, string[]>
-): any {
-  if (!rawTable) return rawTable;
+): { filtered: any, dimOnly: any } {
+  if (!rawTable) return { filtered: null, dimOnly: null };
 
-  let table = rawTable;
+  const dimOnly = applyDimensionFilters(rawTable, dimensionFilters);
+  let filtered = dimOnly;
 
   // Apply period filter
   if (metadata?.dateCol && selectedPeriodKey) {
     const [yearStr, periodStr] = selectedPeriodKey.split('-');
     const year = parseInt(yearStr, 10);
     const period = parseInt(periodStr, 10);
-    table = filterByPeriod(table, metadata.dateCol, year, period, periodType);
+    filtered = filterByPeriod(filtered, metadata.dateCol, year, period, periodType);
   }
 
-  // Apply dimension filters
-  Object.entries(dimensionFilters).forEach(([col, vals]) => {
-    if (vals.length > 0) {
-      try {
-        table = table.filter(aq.escape((d: any) => vals.includes(String(d[col]))));
-      } catch (e) {
-        console.error('Filtering applyAllFilters error:', e);
-      }
-    }
-  });
-
-  return table;
+  return { filtered, dimOnly };
 }
 
 export const useDashboardStore = create<DashboardState>()((set, get) => ({
   rawTable: null,
   filteredTable: null,
+  dimTable: null,
   tableMetadata: null,
   dataLoaded: false,
 
@@ -162,8 +180,8 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
       dimensionFilters: {},
     };
 
-    const filtered = applyAllFilters(table, metadata, 'month', defaultPeriodKey, {});
-    set({ ...newState, filteredTable: filtered });
+    const { filtered, dimOnly } = applyAllFilters(table, metadata, 'month', defaultPeriodKey, {});
+    set({ ...newState, filteredTable: filtered, dimTable: dimOnly });
 
     // Persist data to IndexedDB
     try {
@@ -226,8 +244,8 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
       dimensionFilters: {},
     };
 
-    const filtered = applyAllFilters(table, metadata, 'month', defaultPeriodKey, {});
-    set({ ...newState, filteredTable: filtered });
+    const { filtered, dimOnly } = applyAllFilters(table, metadata, 'month', defaultPeriodKey, {});
+    set({ ...newState, filteredTable: filtered, dimTable: dimOnly });
   },
 
   deleteReport: async (id: string) => {
@@ -269,14 +287,14 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
       ? getAvailablePeriods(rawTable, tableMetadata.dateCol, type)
       : [];
     const defaultPeriodKey = periods.length > 0 ? periods[periods.length - 1].sortKey : null;
-    const filtered = applyAllFilters(rawTable, tableMetadata, type, defaultPeriodKey, dimensionFilters);
-    set({ periodType: type, availablePeriods: periods, selectedPeriodKey: defaultPeriodKey, filteredTable: filtered });
+    const { filtered, dimOnly } = applyAllFilters(rawTable, tableMetadata, type, defaultPeriodKey, dimensionFilters);
+    set({ periodType: type, availablePeriods: periods, selectedPeriodKey: defaultPeriodKey, filteredTable: filtered, dimTable: dimOnly });
   },
 
   setSelectedPeriod: (key: string | null) => {
     const { rawTable, tableMetadata, periodType, dimensionFilters } = get();
-    const filtered = applyAllFilters(rawTable, tableMetadata, periodType, key, dimensionFilters);
-    set({ selectedPeriodKey: key, filteredTable: filtered });
+    const { filtered, dimOnly } = applyAllFilters(rawTable, tableMetadata, periodType, key, dimensionFilters);
+    set({ selectedPeriodKey: key, filteredTable: filtered, dimTable: dimOnly });
   },
 
   setDimensionFilter: (column: string, values: string[]) => {
@@ -284,8 +302,8 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
     const newFilters = { ...dimensionFilters };
     if (values.length === 0) delete newFilters[column];
     else newFilters[column] = values;
-    const filtered = applyAllFilters(rawTable, tableMetadata, periodType, selectedPeriodKey, newFilters);
-    set({ dimensionFilters: newFilters, filteredTable: filtered });
+    const { filtered, dimOnly } = applyAllFilters(rawTable, tableMetadata, periodType, selectedPeriodKey, newFilters);
+    set({ dimensionFilters: newFilters, filteredTable: filtered, dimTable: dimOnly });
   },
 
   clearFilters: () => {
@@ -294,14 +312,15 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
       ? getAvailablePeriods(rawTable, tableMetadata.dateCol, periodType)
       : [];
     const defaultPeriodKey = periods.length > 0 ? periods[periods.length - 1].sortKey : null;
-    const filtered = applyAllFilters(rawTable, tableMetadata, periodType, defaultPeriodKey, {});
-    set({ dimensionFilters: {}, selectedPeriodKey: defaultPeriodKey, filteredTable: filtered });
+    const { filtered, dimOnly } = applyAllFilters(rawTable, tableMetadata, periodType, defaultPeriodKey, {});
+    set({ dimensionFilters: {}, selectedPeriodKey: defaultPeriodKey, filteredTable: filtered, dimTable: dimOnly });
   },
 
   resetDashboard: () => {
     set({
       rawTable: null,
       filteredTable: null,
+      dimTable: null,
       tableMetadata: null,
       dataLoaded: false,
       logoUrl: null,

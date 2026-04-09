@@ -195,7 +195,11 @@ export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClos
                     </div>
                     <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 custom-scroll">
                         {sortedFilters.map((col: string) => {
-                            const uniqueValues = Array.from(new Set(rawTable!.array(col))).filter(Boolean);
+                            const rawValues = Array.from(new Set(rawTable!.array(col)));
+                            const uniqueValues = Array.from(new Set(rawValues.map(v => 
+                                (v === undefined || v === null || String(v).trim() === '') ? 'Не вказано' : String(v)
+                            ))).sort((a, b) => a.localeCompare(b));
+                            
                             const activeValues = dimensionFilters[col] || [];
                             const isPrimary = col === selectedDim;
                             

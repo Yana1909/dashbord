@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDashboardStore } from '../store/useDashboardStore';
+import * as aq from 'arquero';
 import { DollarSign, Wallet, Users, BarChart3, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { DashboardSidebar } from './DashboardSidebar';
 import { DashboardHeader } from './DashboardHeader';
 import { KPICard } from './KPICard';
@@ -28,6 +28,7 @@ export function Dashboard() {
     selectedMetric,
     periodType,
     selectedPeriodKey,
+    dimTable,
     dashboardId,
   } = useDashboardStore();
 
@@ -51,9 +52,9 @@ export function Dashboard() {
     currentPeriod = parseInt(p, 10);
   }
 
-  // Compute summary for each metric using rawTable (not filteredTable) for fair trend comparison
+  // Use dimTable (filtered by dimensions only) for trend comparison and KPI cards
   const metricSummaries = metrics.map(m =>
-    computeMetricSummary(rawTable, tableMetadata!, m, dateCol, currentYear, currentPeriod, periodType)
+    computeMetricSummary(dimTable, tableMetadata!, m, dateCol, currentYear, currentPeriod, periodType)
   );
 
   // Also compute unique dimension count for the filtered table
@@ -63,7 +64,7 @@ export function Dashboard() {
     : 0;
 
   return (
-    <div className="flex h-screen w-full bg-[#F8F9FA] overflow-hidden relative">
+    <div className="flex h-screen w-full bg-[#F8F9FA] overflow-hidden relative" translate="no">
       <DashboardSidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
 
       {isMobileMenuOpen && (
@@ -85,33 +86,27 @@ export function Dashboard() {
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900">Добро пожаловать</h2>
                 <p className="text-gray-500 text-sm">
-                  Загрузите Excel-файл слева, чтобы сгенерировать интерактивный дашборд с динамикой показателей.
+                  Завантажте Excel-файл зліва, щоб згенерувати інтерактивний дашборд.
                 </p>
                 <div className="w-full h-[1px] bg-gray-100 my-2" />
                 <div
                   onClick={handleViewSample}
                   className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-widest cursor-pointer group hover:opacity-80 transition-opacity"
                 >
-                  Посмотреть пример
+                  Подивитися приклад
                   <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
             </div>
           ) : (
-            <motion.div
-              key={dashboardId}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="space-y-8 pb-10"
-            >
-              {/* KPI row — один KPI на каждую метрику */}
+            <div className="space-y-8 pb-10">
+              {/* KPI row */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {metricSummaries.slice(0, 4).map((ms, idx) => {
                   const config = KPI_CONFIG[idx % KPI_CONFIG.length];
                   return (
                     <KPICard
-                        key={ms.name}
+                        key={`kpi-${ms.name}`}
                         title={ms.name}
                         value={ms.current.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                         previousValue={ms.previous > 0 ? ms.previous.toLocaleString('en-US', { maximumFractionDigits: 0 }) : undefined}
@@ -126,6 +121,7 @@ export function Dashboard() {
                 {/* Unique dimension count card */}
                 {dim && (
                   <KPICard
+                    key={`kpi-dim-${dim}`}
                     title={`Унікальних ${dim}`}
                     value={uniqueDimCount.toLocaleString('en-US')}
                     trend={null}
@@ -139,7 +135,7 @@ export function Dashboard() {
               <ErrorBoundary>
                 <MainChartsGrid />
               </ErrorBoundary>
-            </motion.div>
+            </div>
           )}
         </div>
       </main>

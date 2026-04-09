@@ -92,9 +92,9 @@ export function getMonth(d: Date) { return d.getMonth() + 1; }  // 1-12
 export function getQuarter(d: Date) { return Math.ceil((d.getMonth() + 1) / 3); }
 
 const MONTH_NAMES: Record<number, string> = {
-  1: 'Янв', 2: 'Фев', 3: 'Март', 4: 'Апр',
-  5: 'Май', 6: 'Июнь', 7: 'Июль', 8: 'Авг',
-  9: 'Сен', 10: 'Окт', 11: 'Ноя', 12: 'Дек',
+  1: 'Січ', 2: 'Лют', 3: 'Бер', 4: 'Кві',
+  5: 'Тра', 6: 'Чер', 7: 'Лип', 8: 'Сер',
+  9: 'Вер', 10: 'Жов', 11: 'Лис', 12: 'Гру',
 };
 
 export type PeriodType = 'month' | 'quarter' | 'year';
@@ -392,7 +392,13 @@ export function getBreakdownData(
       .orderby(aq.desc('value'))
       .slice(0, topN)
       .objects()
-      .map((row: any) => ({ name: String(row[dimension]), value: row['value'] ?? 0 }));
+      .map((row: any) => {
+        const rawVal = row[dimension];
+        const name = (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') 
+          ? 'Не вказано' 
+          : String(rawVal);
+        return { name, value: row['value'] ?? 0 };
+      });
   } catch (e) {
     console.error('getBreakdownData error:', e);
     return [];

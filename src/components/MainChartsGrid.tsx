@@ -23,7 +23,7 @@ const MODERN_PALETTE = [
 export function MainChartsGrid() {
   const {
     filteredTable,
-    rawTable,
+    dimTable,
     tableMetadata,
     selectedMetric,
     selectedDimension,
@@ -33,10 +33,16 @@ export function MainChartsGrid() {
     availablePeriods,
   } = useDashboardStore();
   
-  const [visibleCount, setVisibleCount] = useState(12); // Number of points to see at once
-  const [scrollIndex, setScrollIndex] = useState(0);    // Start index for the view
+  // Dynamic visible count based on period type - significantly increased to show whole multi-year reports
+  const visibleCount = useMemo(() => {
+    if (periodType === 'month') return 36;   // 3 years at once
+    if (periodType === 'quarter') return 16;  // 4 years at once
+    return 10;                               // 10 years at once
+  }, [periodType]);
 
-  if (!rawTable || !tableMetadata) {
+  const [scrollIndex, setScrollIndex] = useState(0);
+
+  if (!dimTable || !tableMetadata) {
     return (
       <div className="flex-1 flex items-center justify-center p-12 bg-white rounded-[32px] border-2 border-dashed border-gray-100 italic text-gray-400">
         Waiting for data to generate insights...
@@ -50,35 +56,48 @@ export function MainChartsGrid() {
 
   // 1. Trend Line (Apply Dimension Filters only, ignore Period for full context)
   const timeSeriesDataFull = useMemo(() => {
-    let table = rawTable;
-    Object.entries(dimensionFilters).forEach(([col, vals]) => {
-      if (vals.length > 0) {
-        try {
-          // Safe filtering with arquero
-          table = table.filter(aq.escape((d: any) => vals.includes(String(d[col]))));
-        } catch (e) {
-          console.error('Filtering trendSourceTable error:', e);
-        }
-      }
-    });
-
-    return dateCol
-      ? getTimeSeriesData(table, dateCol, [metric], periodType)
+    return dateCol && dimTable
+      ? getTimeSeriesData(dimTable, dateCol, [metric], periodType)
       : [];
-  }, [rawTable, dimensionFilters, dateCol, metric, periodType]);
+  }, [dimTable, dateCol, metric, periodType]);
 
   const timeSeriesDataRaw = useMemo(() => 
     timeSeriesDataFull.map(d => ({ ...d, 'Time Period': d.period })),
     [timeSeriesDataFull]
   );
+
+  const maxScroll = Math.max(0, timeSeriesDataRaw.length - visibleCount);
   
   // Apply scrolling/windowing
   const timeSeriesData = useMemo(() => {
     if (timeSeriesDataRaw.length <= visibleCount) return timeSeriesDataRaw;
-    return timeSeriesDataRaw.slice(scrollIndex, scrollIndex + visibleCount);
-  }, [timeSeriesDataRaw, scrollIndex, visibleCount]);
+    const safeIndex = Math.min(scrollIndex, maxScroll);
+    return timeSeriesDataRaw.slice(safeIndex, safeIndex + visibleCount);
+  }, [timeSeriesDataRaw, scrollIndex, visibleCount, maxScroll]);
 
-  const maxScroll = Math.max(0, timeSeriesDataRaw.length - visibleCount);
+  // AUTO-SCROLL to selected period
+  useEffect(() => {
+    if (selectedPeriodKey && timeSeriesDataRaw.length > visibleCount) {
+        // Try to find the index of the selected period in the raw data
+        // Key format: "2024-03"
+        const [y, p] = selectedPeriodKey.split('-');
+        const year = parseInt(y, 10);
+        const period = parseInt(p, 10);
+        const label = periodType === 'month' 
+            ? `${['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'][period-1]} ${year}`
+            : periodType === 'quarter'
+            ? `Q${period} ${year}`
+            : String(year);
+        
+        const index = timeSeriesDataRaw.findIndex(d => d.period === label);
+        if (index !== -1) {
+            // Center the selected point OR at least make sure it's in the window
+            // Setting it to be toward the end of the window usually feels natural
+            const newScroll = Math.max(0, Math.min(index - Math.floor(visibleCount / 2), maxScroll));
+            setScrollIndex(newScroll);
+        }
+    }
+  }, [selectedPeriodKey, timeSeriesDataRaw, visibleCount, maxScroll, periodType]);
 
   // Keep scroll index within bounds when data changes
   useEffect(() => {
@@ -87,12 +106,29 @@ export function MainChartsGrid() {
     }
   }, [maxScroll, scrollIndex]);
 
-  // 2. Breakdown Data (Filtered)
   const TOP_N = 10;
-  // Use a high limit (1000) to compute 'Others' correctly
-  const { barChartData, donutData, totalAmount } = useMemo(() => {
-    const rawBreakdownFull = stringDim && metric
-      ? getBreakdownData(filteredTable, stringDim, metric, 1000) 
+
+  // 2. Breakdown Data (Smart Dimension Switching)
+  const { barChartData, donutData, totalAmount, breakdownDim, breakdownTitle } = useMemo(() => {
+    // Detect if the current stringDim is filtered to a single value
+    const activeFilters = dimensionFilters[stringDim] || [];
+    const isFiltered = activeFilters.length === 1;
+    const singleValue = activeFilters[0];
+
+    // If filtered to one value, pivot to the next dimension for more insights
+    let targetDim = stringDim;
+    let title = `За категорією: ${stringDim}`;
+    
+    if (isFiltered) {
+        const nextDim = tableMetadata.dimensions.find(d => d !== stringDim && (dimensionFilters[d] || []).length === 0);
+        if (nextDim) {
+            targetDim = nextDim;
+            title = `${nextDim} для: ${singleValue}`;
+        }
+    }
+
+    const rawBreakdownFull = targetDim && metric
+      ? getBreakdownData(filteredTable, targetDim, metric, 1000) 
       : [];
 
     const topN = rawBreakdownFull.slice(0, TOP_N);
@@ -119,13 +155,19 @@ export function MainChartsGrid() {
 
     const total = dd.reduce((acc, d) => acc + d.amount, 0);
 
-    return { barChartData: bcd, donutData: dd, totalAmount: total };
-  }, [filteredTable, stringDim, metric]);
+    return { 
+        barChartData: bcd, 
+        donutData: dd, 
+        totalAmount: total, 
+        breakdownDim: targetDim,
+        breakdownTitle: title
+    };
+  }, [filteredTable, stringDim, metric, tableMetadata.dimensions, dimensionFilters]);
 
-  // 4. YoY Data
-  const { yoyData, currentYearNum, prevYearNum } = useMemo(() => {
-    if (!dateCol || !metric || !selectedPeriodKey) {
-      return { yoyData: [], currentYearNum: null, prevYearNum: null };
+  // 4. YoY Data (Intelligent Drill-down)
+  const { yoyData, currentYearNum, prevYearNum, isDrillDown, yoyTitle, yoySubtitle } = useMemo(() => {
+    if (!dateCol || !metric || !selectedPeriodKey || !dimTable) {
+      return { yoyData: [], currentYearNum: null, prevYearNum: null, isDrillDown: false, yoyTitle: '', yoySubtitle: '' };
     }
 
     const [yearStr, periodStr] = selectedPeriodKey.split('-');
@@ -133,21 +175,74 @@ export function MainChartsGrid() {
     const pValue = parseInt(periodStr, 10);
     const pYear = curYear - 1;
 
-    const curTable = filterByPeriod(rawTable, dateCol, curYear, pValue, periodType);
-    const prevTable = filterByPeriod(rawTable, dateCol, pYear, pValue, periodType);
+    // DRILL-DOWN DETECTION:
+    // If ANY dimension is filtered to ONE value, we show its dynamics.
+    // However, if the currently SELECTED dimension has 1 value, that's the primary indicator.
+    const activeFilters = dimensionFilters[stringDim] || [];
+    let isSingle = activeFilters.length === 1;
+    let singleValue = activeFilters[0];
 
-    const curBD = getBreakdownData(curTable, stringDim, metric, 8);
-    const prevBD = getBreakdownData(prevTable, stringDim, metric, 8);
+    // Fallback: If current dimension is not filtered, but another one is
+    if (!isSingle) {
+        const otherSingle = Object.entries(dimensionFilters).find(([_, vals]) => vals.length === 1);
+        if (otherSingle) {
+            isSingle = true;
+            singleValue = otherSingle[1][0];
+        }
+    }
 
-    const allNames = Array.from(new Set([...curBD.map(d => d.name), ...prevBD.map(d => d.name)]));
-    const data = allNames.map(name => ({
-      name,
-      [`${curYear}`]: curBD.find(d => d.name === name)?.value ?? 0,
-      [`${pYear}`]: prevBD.find(d => d.name === name)?.value ?? 0,
-    }));
+    if (isSingle) {
+      // DRILL-DOWN MODE: Show time dynamics (Monthly) for the focus item
+      const curYearTable = filterByPeriod(dimTable, dateCol, curYear, null, 'year');
+      const prevYearTable = filterByPeriod(dimTable, dateCol, pYear, null, 'year');
 
-    return { yoyData: data, currentYearNum: curYear, prevYearNum: pYear };
-  }, [rawTable, dateCol, metric, selectedPeriodKey, stringDim, periodType]);
+      const curTS = getTimeSeriesData(curYearTable, dateCol, [metric], 'month');
+      const prevTS = getTimeSeriesData(prevYearTable, dateCol, [metric], 'month');
+
+      const monthNames = ['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'];
+      const data = monthNames.map(mName => {
+          const curPoint = curTS.find(d => d.period.startsWith(mName));
+          const prevPoint = prevTS.find(d => d.period.startsWith(mName));
+          return {
+              name: mName,
+              [`${curYear}`]: curPoint?.[metric] ?? 0,
+              [`${pYear}`]: prevPoint?.[metric] ?? 0,
+          };
+      });
+
+      return { 
+        yoyData: data, 
+        currentYearNum: curYear, 
+        prevYearNum: pYear,
+        isDrillDown: true,
+        yoyTitle: `Динаміка: ${singleValue}`,
+        yoySubtitle: `Порівняння ${curYear} vs ${pYear} по місяцях`
+      };
+    } else {
+      // BREAKDOWN MODE: Compare categories within the selected period
+      const curTable = filterByPeriod(dimTable, dateCol, curYear, pValue, periodType);
+      const prevTable = filterByPeriod(dimTable, dateCol, pYear, pValue, periodType);
+
+      const curBD = getBreakdownData(curTable, stringDim, metric, 8);
+      const prevBD = getBreakdownData(prevTable, stringDim, metric, 8);
+
+      const allNames = Array.from(new Set([...curBD.map(d => d.name), ...prevBD.map(d => d.name)]));
+      const data = allNames.map(name => ({
+        name,
+        [`${curYear}`]: curBD.find(d => d.name === name)?.value ?? 0,
+        [`${pYear}`]: prevBD.find(d => d.name === name)?.value ?? 0,
+      }));
+
+      return { 
+        yoyData: data, 
+        currentYearNum: curYear, 
+        prevYearNum: pYear,
+        isDrillDown: false,
+        yoyTitle: `Порівняння приросту: ${curYear} vs ${pYear}`,
+        yoySubtitle: `Аналіз змін ${metric} у розрізі «${stringDim}»`
+      };
+    }
+  }, [dimTable, dateCol, metric, selectedPeriodKey, stringDim, periodType, dimensionFilters]);
 
   const selectedPeriodEntry = selectedPeriodKey
     ? availablePeriods.find((p) => p.sortKey === selectedPeriodKey)
@@ -163,10 +258,12 @@ export function MainChartsGrid() {
           <div className="flex items-center justify-between mb-8">
             <div className="space-y-1">
               <Title className="text-xl font-bold !text-gray-900 tracking-tight">
-                Динаміка: {metric}
+                Динаміка: <span>{metric}</span>
               </Title>
               <p className="text-sm text-gray-400 font-medium">
-                Групування за <span className="text-primary font-bold">{periodType === 'month' ? 'місяцями' : periodType === 'quarter' ? 'кварталами' : 'роками'}</span>
+                Групування за <span className="text-primary font-bold">
+                  {periodType === 'month' ? 'місяцями' : periodType === 'quarter' ? 'кварталами' : 'роками'}
+                </span>
               </p>
             </div>
             
@@ -219,7 +316,7 @@ export function MainChartsGrid() {
         <Card className="p-10 lg:col-span-3 border-none flex flex-col justify-between shadow-xl shadow-black/[0.02]">
           <div className="flex flex-col gap-1 mb-10">
             <Title className="text-xl font-bold !text-gray-900 tracking-tight">
-               За категорією: {stringDim}
+               {breakdownTitle}
             </Title>
             <p className="text-sm text-gray-400 font-medium">
                 Топ значень за <span className="text-primary font-bold">{selectedLabel}</span>
@@ -245,10 +342,10 @@ export function MainChartsGrid() {
         <Card className="p-10 lg:col-span-2 border-none flex flex-col shadow-xl shadow-black/[0.02]">
           <div className="flex flex-col gap-1 mb-8">
             <Title className="text-xl font-bold !text-gray-900 tracking-tight text-center">
-              Розподіл часток: {stringDim}
+              Розподіл часток: <span>{breakdownDim}</span>
             </Title>
             <p className="text-sm text-gray-400 font-medium text-center">
-                Склад топ-10 та інших сегментів
+                Склад сегментів для обраного фільтра
             </p>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center gap-10">
@@ -285,10 +382,10 @@ export function MainChartsGrid() {
             <div className="flex items-center justify-between mb-8">
                 <div className="space-y-1">
                   <Title className="text-xl font-bold !text-gray-900 tracking-tight">
-                    Порівняння приросту: {currentYearNum} vs {prevYearNum}
+                    {yoyTitle}
                   </Title>
                   <p className="text-sm text-gray-400 font-medium">
-                    Аналіз змін {metric} у розрізі «{stringDim}»
+                    {yoySubtitle}
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -310,7 +407,7 @@ export function MainChartsGrid() {
                 categories={[String(currentYearNum), String(prevYearNum)]}
                 colors={['emerald', 'orange']}
                 yAxisWidth={150}
-                layout="vertical"
+                layout={isDrillDown ? "horizontal" : "vertical"}
                 showAnimation={false}
                 showGridLines={false}
                 valueFormatter={(number: number) => number.toLocaleString('en-US', { maximumFractionDigits: 0 })}
