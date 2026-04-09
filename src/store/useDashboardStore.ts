@@ -5,6 +5,7 @@ import {
   getTableMetadata,
   filterByPeriod,
   getAvailablePeriods,
+  normalizeData,
   type TableMetadata,
   type PeriodType,
   type PeriodEntry,
@@ -88,9 +89,12 @@ function applyAllFilters(
     if (vals.length > 0) {
       const selectedVals = vals;
       const colName = col;
-      table = table.filter(
-        aq.escape((d: any) => selectedVals.includes(String(d[colName])))
-      );
+      try {
+        const rows = table.objects().filter((d: any) => selectedVals.includes(String(d[colName])));
+        table = rows.length > 0 ? aq.from(rows) : aq.from([]);
+      } catch (e) {
+        console.error('Filtering applyAllFilters error:', e);
+      }
     }
   });
 
@@ -133,7 +137,7 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
   },
 
   setData: async (data: any[], title?: string) => {
-    const table = aq.from(data);
+    const table = aq.from(normalizeData(data));
     const metadata = getTableMetadata(table);
     const newTitle = title || 'New Dashboard';
     const targetId = uuidv4();
@@ -196,7 +200,7 @@ export const useDashboardStore = create<DashboardState>()((set, get) => ({
     const meta = savedReports.find(r => r.id === id);
     
     // Partially reuse logic from setData but with existing ID and Title
-    const table = aq.from(data);
+    const table = aq.from(normalizeData(data));
     const metadata = getTableMetadata(table);
     const periods = metadata.dateCol ? getAvailablePeriods(table, metadata.dateCol, 'month') : [];
     const defaultPeriodKey = periods.length > 0 ? periods[periods.length - 1].sortKey : null;

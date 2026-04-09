@@ -24,10 +24,10 @@ export function ReportLibrary() {
           <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600">
             <HardDrive className="w-5 h-5" />
           </div>
-          <h2 className="text-lg font-bold text-gray-900 tracking-tight">Report Library</h2>
+          <h2 className="text-lg font-bold text-gray-900 tracking-tight">Бібліотека звітів</h2>
         </div>
         <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider ml-10">
-          Saved Documents ({savedReports.length})
+          Збережені документи ({savedReports.length})
         </p>
       </div>
 
@@ -37,8 +37,8 @@ export function ReportLibrary() {
             <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-4">
                <FileText className="w-6 h-6 text-gray-300" />
             </div>
-            <p className="text-sm font-semibold text-gray-400">No reports saved yet</p>
-            <p className="text-[11px] text-gray-300 mt-1">Upload a file to see it here</p>
+            <p className="text-sm font-semibold text-gray-400">Звітів поки немає</p>
+            <p className="text-[11px] text-gray-300 mt-1">Завантажте файл, щоб побачити його тут</p>
           </div>
         ) : (
           <AnimatePresence mode="popLayout">
@@ -106,7 +106,7 @@ export function ReportLibrary() {
                       ))}
                    </div>
                    <div className="flex items-center gap-1 text-[10px] font-bold text-primary group-hover:translate-x-1 transition-transform">
-                      View Metrics
+                      Переглянути метрики
                       <ChevronRight className="w-3 h-3" />
                    </div>
                 </div>
@@ -118,13 +118,13 @@ export function ReportLibrary() {
 
       <div className="p-6 bg-gray-50/50 border-t border-gray-50 mt-auto">
         <div className="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm">
-           <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest mb-2">Cloud Synced</p>
+           <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest mb-2">СИНХРОНІЗАЦІЯ З ХМАРОЮ</p>
            <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs font-bold text-gray-700">Real-time collaboration</span>
+              <span className="text-xs font-bold text-gray-700">Спільна робота в режимі реального часу</span>
            </div>
            <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
-             Analysts can upload reports here. Changes are instantly available to everyone.
+             Аналітики можуть завантажувати звіти сюди. Зміни миттєво стають доступні всім.
            </p>
         </div>
       </div>

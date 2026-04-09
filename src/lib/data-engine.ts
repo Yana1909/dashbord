@@ -33,14 +33,58 @@ export function tryParseDate(val: any): Date | null {
   if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
   if (typeof val === 'number') {
     // Excel serial date
-    const d = XLSX.SSF.parse_date_code(val);
-    if (d) return new Date(d.y, d.m - 1, d.d);
+    try {
+        const d = XLSX.SSF.parse_date_code(val);
+        if (d) return new Date(d.y, d.m - 1, d.d);
+    } catch { return null; }
   }
   if (typeof val === 'string') {
-    const ts = Date.parse(val);
+    // Trim and handle common string formats
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+    const ts = Date.parse(trimmed);
     if (!isNaN(ts)) return new Date(ts);
+    
+    // Check for DD.MM.YYYY format
+    const Parts_DD_MM_YYYY = /^\s*(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})\s*$/.exec(trimmed);
+    if (Parts_DD_MM_YYYY) {
+      const d = parseInt(Parts_DD_MM_YYYY[1], 10);
+      const m = parseInt(Parts_DD_MM_YYYY[2], 10) - 1;
+      const y = parseInt(Parts_DD_MM_YYYY[3], 10);
+      const fullY = y < 100 ? (y < 50 ? 2000 + y : 1900 + y) : y;
+      const date = new Date(fullY, m, d);
+      if (!isNaN(date.getTime())) return date;
+    }
   }
   return null;
+}
+
+/** 
+ * Renames specific columns to be more human-readable as requested.
+ * (e.g. "Співробітник Ім'я" -> "Співробітник")
+ */
+export function normalizeData(data: any[]): any[] {
+  if (!data || data.length === 0) return data;
+  
+  const renameMap: Record<string, string> = {
+    'Співробітник Ім\'я': 'Співробітник',
+    'Співробітник Ім’я': 'Співробітник', // Different quote variants
+    'Співробітник Ім`я': 'Співробітник',
+    'Співробітник Імя': 'Співробітник',
+    'ім\'я співорбітник': 'Співробітник',
+    'Напрявня': 'Напрямок',
+    'Направлення': 'Напрямок',
+    'направлення': 'Напрямок',
+  };
+
+  return data.map(row => {
+    const newRow: any = {};
+    Object.entries(row).forEach(([key, val]) => {
+      const normalizedKey = renameMap[key] || key;
+      newRow[normalizedKey] = val;
+    });
+    return newRow;
+  });
 }
 
 export function getYear(d: Date) { return d.getFullYear(); }
@@ -154,6 +198,7 @@ export function getAvailablePeriods(table: any, dateCol: string, periodType: Per
 /**
  * Filter the table to only rows within a given period.
  * If period is null, returns the full table.
+ * Uses a safe fallback approach if aq.escape fails in production builds.
  */
 export function filterByPeriod(
   table: any,
@@ -164,16 +209,26 @@ export function filterByPeriod(
 ): any {
   if (!table || !dateCol || year === null) return table;
 
-  return table.filter(
-    aq.escape((row: any) => {
-      const d = tryParseDate(row[dateCol]);
-      if (!d) return false;
-      if (getYear(d) !== year) return false;
-      if (periodType === 'month') return getMonth(d) === period;
-      if (periodType === 'quarter') return getQuarter(d) === period;
-      return true; // year mode, already checked year
-    })
-  );
+  try {
+    // Safe approach: filter data as plain objects, then recreate table
+    const rows: any[] = table.objects();
+    const filtered = rows.filter((row: any) => {
+      try {
+        const d = tryParseDate(row[dateCol]);
+        if (!d) return false;
+        if (getYear(d) !== year) return false;
+        if (periodType === 'month') return getMonth(d) === period;
+        if (periodType === 'quarter') return getQuarter(d) === period;
+        return true; // year mode
+      } catch {
+        return false;
+      }
+    });
+    return filtered.length > 0 ? aq.from(filtered) : aq.from([]);
+  } catch (e) {
+    console.error('filterByPeriod error:', e);
+    return table;
+  }
 }
 
 // ─── KPI computation ───────────────────────────────────────────────────────────
@@ -268,10 +323,9 @@ export function computeMetricSummary(
   };
 }
 
-// ─── Chart data ────────────────────────────────────────────────────────────────
-
 /**
  * Returns time-series data for a given metric, grouped by period.
+ * Uses safe plain-object approach to avoid aq.escape issues in production.
  */
 export function getTimeSeriesData(
   table: any,
@@ -281,39 +335,40 @@ export function getTimeSeriesData(
 ): Array<Record<string, any>> {
   if (!table || !dateCol || metricCols.length === 0) return [];
   try {
-    // Derive a period label column
-    const withPeriod = table.derive({
-      __period__: aq.escape((row: any) => {
-        const d = tryParseDate(row[dateCol]);
-        if (!d) return null;
-        const y = getYear(d);
-        const p = periodType === 'month' ? getMonth(d) : periodType === 'quarter' ? getQuarter(d) : 1;
-        return formatPeriodLabel(y, p, periodType);
-      }),
-      __sortKey__: aq.escape((row: any) => {
-        const d = tryParseDate(row[dateCol]);
-        if (!d) return '';
-        const y = getYear(d);
-        const p = periodType === 'month' ? getMonth(d) : periodType === 'quarter' ? getQuarter(d) : 1;
-        return `${y}-${String(p).padStart(2, '0')}`;
-      }),
-    }).filter(aq.escape((row: any) => row.__period__ !== null));
-
-    const rollupSpec: Record<string, any> = {};
-    metricCols.forEach(col => { rollupSpec[col] = aq.op.sum(col); });
-    rollupSpec['__sortKey__'] = aq.op.max('__sortKey__');
-
-    const grouped = withPeriod
-      .groupby('__period__')
-      .rollup(rollupSpec)
-      .orderby('__sortKey__')
-      .objects() as Array<Record<string, any>>;
-
-    return grouped.map(row => {
-      const obj: Record<string, any> = { period: row['__period__'] };
-      metricCols.forEach(col => { obj[col] = row[col] ?? 0; });
-      return obj;
+    const rows: any[] = table.objects();
+    
+    // Group by period manually
+    const groups = new Map<string, { label: string; sortKey: string; sums: Record<string, number> }>();
+    
+    rows.forEach((row: any) => {
+      const d = tryParseDate(row[dateCol]);
+      if (!d) return;
+      const y = getYear(d);
+      const p = periodType === 'month' ? getMonth(d) : periodType === 'quarter' ? getQuarter(d) : 1;
+      const label = formatPeriodLabel(y, p, periodType);
+      const sortKey = `${y}-${String(p).padStart(2, '0')}`;
+      
+      if (!groups.has(sortKey)) {
+        const sums: Record<string, number> = {};
+        metricCols.forEach(col => { sums[col] = 0; });
+        groups.set(sortKey, { label, sortKey, sums });
+      }
+      
+      const group = groups.get(sortKey)!;
+      metricCols.forEach(col => {
+        const val = Number(row[col]);
+        if (!isNaN(val)) group.sums[col] += val;
+      });
     });
+    
+    // Sort by sortKey and return
+    return Array.from(groups.values())
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+      .map(g => {
+        const obj: Record<string, any> = { period: g.label };
+        metricCols.forEach(col => { obj[col] = g.sums[col]; });
+        return obj;
+      });
   } catch (e) {
     console.error('getTimeSeriesData error:', e);
     return [];

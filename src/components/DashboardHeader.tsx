@@ -25,7 +25,7 @@ export function DashboardHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
           <div className="flex items-center gap-2">
             <Clock className="w-3 h-3 text-gray-400" />
             <span className="text-[10px] font-medium text-gray-400 tracking-wide uppercase">
-              Last updated: {lastUpdated}
+              Останнє оновлення: {lastUpdated}
             </span>
           </div>
         </div>
@@ -34,10 +34,10 @@ export function DashboardHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
       <div className="flex items-center gap-4">
         <Button variant="ghost" className="text-gray-500 h-9" onClick={handleLogoRefresh}>
           <RefreshCw className="w-4 h-4 mr-2" />
-          Sync
+          Синхронізація
         </Button>
         <Button variant="primary" className="h-9 px-6 bg-gray-900 hover:bg-gray-800 text-white shadow-md">
-          Export Report
+          Звіт про експорт
         </Button>
       </div>
     </header>

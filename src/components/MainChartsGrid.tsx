@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import * as aq from 'arquero';
 import {
   AreaChart,
@@ -30,7 +30,11 @@ export function MainChartsGrid() {
     periodType,
     selectedPeriodKey,
     dimensionFilters,
+    availablePeriods,
   } = useDashboardStore();
+  
+  const [visibleCount, setVisibleCount] = useState(12); // Number of points to see at once
+  const [scrollIndex, setScrollIndex] = useState(0);    // Start index for the view
 
   if (!rawTable || !tableMetadata) {
     return (
@@ -48,15 +52,35 @@ export function MainChartsGrid() {
   let trendSourceTable = rawTable;
   Object.entries(dimensionFilters).forEach(([col, vals]) => {
     if (vals.length > 0) {
-        trendSourceTable = trendSourceTable.filter(
-            aq.escape((d: any) => vals.includes(String(d[col])))
-        );
+        try {
+            const rows = trendSourceTable.objects().filter((d: any) => vals.includes(String(d[col])));
+            trendSourceTable = rows.length > 0 ? aq.from(rows) : aq.from([]);
+        } catch (e) {
+            console.error('Filtering trendSourceTable error:', e);
+        }
     }
   });
 
-  const timeSeriesData = dateCol
+  const timeSeriesDataFull = dateCol
     ? getTimeSeriesData(trendSourceTable, dateCol, [metric], periodType)
     : [];
+
+  const timeSeriesDataRaw = timeSeriesDataFull.map(d => ({ ...d, 'Time Period': d.period }));
+  
+  // Apply scrolling/windowing
+  const timeSeriesData = useMemo(() => {
+    if (timeSeriesDataRaw.length <= visibleCount) return timeSeriesDataRaw;
+    return timeSeriesDataRaw.slice(scrollIndex, scrollIndex + visibleCount);
+  }, [timeSeriesDataRaw, scrollIndex, visibleCount]);
+
+  const maxScroll = Math.max(0, timeSeriesDataRaw.length - visibleCount);
+
+  // Keep scroll index within bounds when data changes
+  useEffect(() => {
+    if (scrollIndex > maxScroll) {
+      setScrollIndex(maxScroll);
+    }
+  }, [maxScroll, scrollIndex]);
 
   // 2. Breakdown Data (Filtered)
   const TOP_N = 10;
@@ -116,9 +140,9 @@ export function MainChartsGrid() {
   }
 
   const selectedPeriodEntry = selectedPeriodKey
-    ? useDashboardStore.getState().availablePeriods.find((p) => p.sortKey === selectedPeriodKey)
+    ? availablePeriods.find((p) => p.sortKey === selectedPeriodKey)
     : null;
-  const selectedLabel = selectedPeriodEntry?.label ?? 'Full summary';
+  const selectedLabel = selectedPeriodEntry?.label ?? 'За весь період';
 
   return (
     <div className="flex flex-col gap-10 pb-16">
@@ -129,24 +153,47 @@ export function MainChartsGrid() {
           <div className="flex items-center justify-between mb-8">
             <div className="space-y-1">
               <Title className="text-xl font-bold !text-gray-900 tracking-tight">
-                {metric} performance over time
+                Динаміка: {metric}
               </Title>
               <p className="text-sm text-gray-400 font-medium">
-                Showing historical trends grouped by <span className="text-primary font-bold">{periodType}s</span>
+                Групування за <span className="text-primary font-bold">{periodType === 'month' ? 'місяцями' : periodType === 'quarter' ? 'кварталами' : 'роками'}</span>
               </p>
             </div>
-            <div className="px-4 py-2 bg-gray-50 rounded-[14px] text-[12px] font-bold text-gray-500 uppercase tracking-widest border border-gray-100 shadow-sm">
-                Full History Trend
+            
+            <div className="flex flex-col items-end gap-3">
+              <div className="px-4 py-2 bg-gray-50 rounded-[14px] text-[12px] font-bold text-gray-500 uppercase tracking-widest border border-gray-100 shadow-sm">
+                  Тренд за весь час
+              </div>
+              {timeSeriesDataRaw.length > visibleCount && (
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-gray-100 shadow-sm">
+                    <div className="flex flex-col items-end">
+                      <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-widest leading-none mb-1">Навігація за часом</span>
+                      <span className="text-[10px] font-bold text-primary truncate">
+                        {timeSeriesData[0]?.['Time Period']} — {timeSeriesData[timeSeriesData.length - 1]?.['Time Period']}
+                      </span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min={0} 
+                      max={maxScroll} 
+                      value={scrollIndex} 
+                      onChange={(e) => setScrollIndex(parseInt(e.target.value, 10))}
+                      className="w-40 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary hover:bg-gray-300 transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <AreaChart
             className="h-[360px] mt-4"
-            data={timeSeriesData.map(d => ({ ...d, 'Time Period': d.period }))}
+            data={timeSeriesData}
             index="Time Period"
             categories={[metric]}
             colors={['emerald']}
             yAxisWidth={100}
-            showAnimation={true}
+            showAnimation={false} // Disable animation for smoother sliding
             showLegend={false}
             showGridLines={false}
             curveType="monotone"
@@ -162,10 +209,10 @@ export function MainChartsGrid() {
         <Card className="p-10 lg:col-span-3 border-none flex flex-col justify-between shadow-xl shadow-black/[0.02]">
           <div className="flex flex-col gap-1 mb-10">
             <Title className="text-xl font-bold !text-gray-900 tracking-tight">
-               By {stringDim}
+               За категорією: {stringDim}
             </Title>
             <p className="text-sm text-gray-400 font-medium">
-                Top performance breakdown for <span className="text-primary font-bold">{selectedLabel}</span>
+                Топ значень за <span className="text-primary font-bold">{selectedLabel}</span>
             </p>
           </div>
           <BarChart
@@ -186,10 +233,10 @@ export function MainChartsGrid() {
         <Card className="p-10 lg:col-span-2 border-none flex flex-col shadow-xl shadow-black/[0.02]">
           <div className="flex flex-col gap-1 mb-8">
             <Title className="text-xl font-bold !text-gray-900 tracking-tight text-center">
-              Share Analysis
+              Розподіл часток: {stringDim}
             </Title>
             <p className="text-sm text-gray-400 font-medium text-center">
-                Top-10 + Other segments composition
+                Склад топ-10 та інших сегментів
             </p>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center gap-10">
@@ -226,10 +273,10 @@ export function MainChartsGrid() {
             <div className="flex items-center justify-between mb-8">
                 <div className="space-y-1">
                   <Title className="text-xl font-bold !text-gray-900 tracking-tight">
-                    Growth comparison: {currentYearNum} vs {prevYearNum}
+                    Порівняння приросту: {currentYearNum} vs {prevYearNum}
                   </Title>
                   <p className="text-sm text-gray-400 font-medium">
-                    Analysis of changes in <span className="font-bold text-gray-600">{metric}</span> across <span className="text-primary font-bold">{stringDim}</span>
+                    Аналіз змін {metric} у розрізі «{stringDim}»
                   </p>
                 </div>
                 <div className="flex items-center gap-4">

@@ -123,7 +123,7 @@ export function Dashboard() {
                 {/* Unique dimension count card */}
                 {dim && (
                   <KPICard
-                    title={`Total unique ${dim}`}
+                    title={`Унікальних ${dim}`}
                     value={uniqueDimCount.toLocaleString('en-US')}
                     trend={null}
                     icon={Users}

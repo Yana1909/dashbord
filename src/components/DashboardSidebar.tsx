@@ -7,9 +7,9 @@ import { cn, Button, Input } from './ui/base';
 import type { PeriodType } from '../lib/data-engine';
 
 const PERIOD_TYPES: { value: PeriodType; label: string }[] = [
-  { value: 'month', label: 'Month' },
-  { value: 'quarter', label: 'Quarter' },
-  { value: 'year', label: 'Year' },
+  { value: 'month', label: 'Місяць' },
+  { value: 'quarter', label: 'Квартал' },
+  { value: 'year', label: 'Рік' },
 ];
 
 export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
@@ -113,13 +113,13 @@ export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClos
             
             <Button className="w-full h-12 gap-3" variant="primary" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="w-4 h-4 stroke-[2.5px]" />
-                <span className="text-[13px] font-bold">Import Spreadsheet</span>
+                <span className="text-[13px] font-bold">Завантажити Excel</span>
             </Button>
             <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx,.xls,.pbix" onChange={handleFileUpload} />
             
             <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 stroke-[2.5px]" />
-                <Input className="pl-11 bg-white border-transparent shadow-sm" placeholder="Search insights..." />
+                <Input className="pl-11 bg-white border-transparent shadow-sm" placeholder="Пошук..." />
             </div>
         </div>
 
@@ -129,7 +129,7 @@ export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClos
             {/* Metric Selection */}
             {hasMetrics && (
                 <div className="space-y-4">
-                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest px-1">Primary Metric</h3>
+                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest px-1">Головний показник</h3>
                     <div className="flex flex-col gap-1.5 px-0.5">
                     {tableMetadata!.metrics.map(m => (
                         <button
@@ -153,7 +153,7 @@ export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClos
             {/* Dimension Selection */}
             {(tableMetadata?.dimensions?.length ?? 0) > 0 && (
                 <div className="space-y-4">
-                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest px-1">Grouping Analysis</h3>
+                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest px-1">Аналіз за категорією</h3>
                     <div className="flex flex-col gap-1.5 px-0.5 max-h-[300px] overflow-y-auto custom-scroll pr-2">
                     {tableMetadata!.dimensions.map(dim => (
                         <button
@@ -178,13 +178,13 @@ export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClos
             {sortedFilters.length > 0 && (
                 <div className="space-y-6">
                     <div className="flex items-center justify-between px-1">
-                        <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Smart Filters</h3>
+                        <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Розумні фільтри</h3>
                         {hasAnyFilter && (
                             <button 
                                 onClick={clearFilters}
                                 className="text-[10px] font-bold text-primary hover:underline"
                             >
-                                Reset
+                                Скинути
                             </button>
                         )}
                     </div>
@@ -210,7 +210,7 @@ export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClos
                                                     : "bg-gray-50 border-gray-100 text-gray-400 hover:border-gray-300 hover:text-gray-600 shadow-sm"
                                             )}
                                         >
-                                            All
+                                            Всі
                                         </button>
                                         {uniqueValues.map(val => {
                                             const sVal = String(val);
@@ -246,7 +246,7 @@ export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClos
             {/* Time Filtering */}
             {hasPeriods && (
                 <div className="space-y-6">
-                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest px-1">Temporal Filters</h3>
+                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest px-1">Тимчасові фільтри</h3>
                     <div className="p-1.5 bg-gray-50/50 rounded-[20px] flex gap-1.5 border border-gray-100">
                     {PERIOD_TYPES.map(pt => (
                         <button
@@ -274,7 +274,7 @@ export function DashboardSidebar({ isOpen, onClose }: { isOpen?: boolean; onClos
                                 : 'text-gray-400 hover:bg-white hover:text-gray-700 hover:shadow-md'
                             )}
                         >
-                            Full Summary
+                            Весь період
                         </button>
                         {availablePeriods.map(pe => (
                             <button
