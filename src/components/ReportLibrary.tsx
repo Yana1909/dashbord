@@ -1,10 +1,15 @@
 import React, { useEffect } from 'react';
 import { useDashboardStore } from '../store/useDashboardStore';
-import { FileText, Trash2, Clock, CheckCircle2, ChevronRight, HardDrive } from 'lucide-react';
+import { FileText, Trash2, Clock, CheckCircle2, ChevronRight, HardDrive, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn, Button } from './ui/base';
 
-export function ReportLibrary() {
+interface ReportLibraryProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function ReportLibrary({ isOpen, onClose }: ReportLibraryProps) {
   const { 
     savedReports, 
     loadSavedReports, 
@@ -18,17 +23,25 @@ export function ReportLibrary() {
   }, [loadSavedReports]);
 
   return (
-    <div className="w-[320px] h-full bg-white border-l border-gray-100 flex flex-col shadow-2xl shadow-black/[0.02]">
-      <div className="p-6 border-b border-gray-50 bg-gray-50/30">
-        <div className="flex items-center gap-3 mb-1">
+    <div className={cn(
+        "w-[320px] h-screen bg-white border-l border-gray-100 flex flex-col shadow-2xl shadow-black/[0.02] fixed right-0 top-0 z-40 transition-all duration-500",
+        isOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0 lg:static"
+    )}>
+      <div className="p-6 border-b border-gray-50 bg-gray-50/30 flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600">
             <HardDrive className="w-5 h-5" />
           </div>
-          <h2 className="text-lg font-bold text-gray-900 tracking-tight">Бібліотека звітів</h2>
+          <div className="flex flex-col">
+            <h2 className="text-lg font-bold text-gray-900 tracking-tight leading-tight">Бібліотека</h2>
+            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+                Звіти ({savedReports.length})
+            </p>
+          </div>
         </div>
-        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider ml-10">
-          Збережені документи ({savedReports.length})
-        </p>
+        <Button variant="ghost" className="lg:hidden p-1 h-auto" onClick={onClose}>
+            <X className="w-5 h-5 text-gray-400" />
+        </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scroll p-4 space-y-3">

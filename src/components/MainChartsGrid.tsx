@@ -20,7 +20,20 @@ const MODERN_PALETTE = [
     'gray' // For 'Others'
 ];
 
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  return width;
+}
+
 export function MainChartsGrid() {
+  const windowWidth = useWindowWidth();
+  const isMobile = windowWidth < 640;
+
   const {
     filteredTable,
     dimTable,
@@ -250,33 +263,33 @@ export function MainChartsGrid() {
   const selectedLabel = selectedPeriodEntry?.label ?? 'За весь період';
 
   return (
-    <div className="flex flex-col gap-10 pb-16">
+    <div className="flex flex-col gap-6 sm:gap-10 pb-16">
       
       {/* ─── Main Trend Chart ─── */}
       {dateCol && (
-        <Card className="p-10 border-none shadow-xl shadow-black/[0.02]">
-          <div className="flex items-center justify-between mb-8">
+        <Card className="p-5 sm:p-8 lg:p-10 border-none shadow-xl shadow-black/[0.02]">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <div className="space-y-1">
-              <Title className="text-xl font-bold !text-gray-900 tracking-tight">
+              <Title className="text-lg sm:text-xl font-bold !text-gray-900 tracking-tight">
                 Динаміка: <span>{metric}</span>
               </Title>
-              <p className="text-sm text-gray-400 font-medium">
+              <p className="text-xs sm:text-sm text-gray-400 font-medium">
                 Групування за <span className="text-primary font-bold">
                   {periodType === 'month' ? 'місяцями' : periodType === 'quarter' ? 'кварталами' : 'роками'}
                 </span>
               </p>
             </div>
             
-            <div className="flex flex-col items-end gap-3">
-              <div className="px-4 py-2 bg-gray-50 rounded-[14px] text-[12px] font-bold text-gray-500 uppercase tracking-widest border border-gray-100 shadow-sm">
+            <div className="flex flex-col items-start sm:items-end gap-3 w-full sm:w-auto">
+              <div className="hidden sm:block px-4 py-2 bg-gray-50 rounded-[14px] text-[12px] font-bold text-gray-500 uppercase tracking-widest border border-gray-100 shadow-sm">
                   Тренд за весь час
               </div>
               {timeSeriesDataRaw.length > visibleCount && (
-                <div className="flex flex-col items-end gap-2">
-                  <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-gray-100 shadow-sm">
-                    <div className="flex flex-col items-end">
-                      <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-widest leading-none mb-1">Навігація за часом</span>
-                      <span className="text-[10px] font-bold text-primary truncate">
+                <div className="flex flex-col items-start sm:items-end gap-2 w-full">
+                  <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-gray-100 shadow-sm w-full sm:w-auto">
+                    <div className="flex flex-col items-start sm:items-end flex-1 sm:flex-none min-w-0">
+                      <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-widest leading-none mb-1">Навігація</span>
+                      <span className="text-[10px] font-bold text-primary truncate block">
                         {timeSeriesData[0]?.['Time Period']} — {timeSeriesData[timeSeriesData.length - 1]?.['Time Period']}
                       </span>
                     </div>
@@ -286,7 +299,7 @@ export function MainChartsGrid() {
                       max={maxScroll} 
                       value={scrollIndex} 
                       onChange={(e) => setScrollIndex(parseInt(e.target.value, 10))}
-                      className="w-40 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary hover:bg-gray-300 transition-colors"
+                      className="flex-1 sm:w-40 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary hover:bg-gray-300 transition-colors"
                     />
                   </div>
                 </div>
@@ -294,13 +307,13 @@ export function MainChartsGrid() {
             </div>
           </div>
           <AreaChart
-            className="h-[360px] mt-4"
+            className="h-[250px] sm:h-[360px] mt-4"
             data={timeSeriesData}
             index="Time Period"
             categories={[metric]}
             colors={['emerald']}
-            yAxisWidth={100}
-            showAnimation={false} // Disable animation for smoother sliding
+            yAxisWidth={isMobile ? 50 : 100}
+            showAnimation={false}
             showLegend={false}
             showGridLines={false}
             curveType="monotone"
@@ -310,26 +323,26 @@ export function MainChartsGrid() {
       )}
 
       {/* ─── Row 2: Composition & Distribution ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 h-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-10 h-auto">
         
         {/* Breakdown Bar Chart (Left) */}
-        <Card className="p-10 lg:col-span-3 border-none flex flex-col justify-between shadow-xl shadow-black/[0.02]">
-          <div className="flex flex-col gap-1 mb-10">
-            <Title className="text-xl font-bold !text-gray-900 tracking-tight">
+        <Card className="p-5 sm:p-8 lg:p-10 lg:col-span-3 border-none flex flex-col justify-between shadow-xl shadow-black/[0.02]">
+          <div className="flex flex-col gap-1 mb-6 sm:mb-10">
+            <Title className="text-lg sm:text-xl font-bold !text-gray-900 tracking-tight">
                {breakdownTitle}
             </Title>
-            <p className="text-sm text-gray-400 font-medium">
+            <p className="text-xs sm:text-sm text-gray-400 font-medium">
                 Топ значень за <span className="text-primary font-bold">{selectedLabel}</span>
             </p>
           </div>
           <div className="flex-1 w-full">
             <BarChart
-              className="h-[320px]"
+              className="h-[280px] sm:h-[320px]"
               data={barChartData}
               index="name"
               categories={[metric]}
               colors={['emerald']}
-              yAxisWidth={150} 
+              yAxisWidth={isMobile ? 60 : 150} 
               layout="vertical"
               showAnimation={false}
               showGridLines={false}
@@ -338,18 +351,18 @@ export function MainChartsGrid() {
           </div>
         </Card>
 
-        {/* Shares Distribution (Right) - Donut with ABC Analysis */}
-        <Card className="p-10 lg:col-span-2 border-none flex flex-col shadow-xl shadow-black/[0.02]">
-          <div className="flex flex-col gap-1 mb-8">
-            <Title className="text-xl font-bold !text-gray-900 tracking-tight text-center">
-              Розподіл часток: <span>{breakdownDim}</span>
+        {/* Shares Distribution (Right) */}
+        <Card className="p-5 sm:p-8 lg:p-10 lg:col-span-2 border-none flex flex-col shadow-xl shadow-black/[0.02]">
+          <div className="flex flex-col gap-1 mb-6 sm:mb-8">
+            <Title className="text-lg sm:text-xl font-bold !text-gray-900 tracking-tight text-center">
+              Розподіл: <span>{breakdownDim}</span>
             </Title>
-            <p className="text-sm text-gray-400 font-medium text-center">
-                Склад сегментів для обраного фільтра
+            <p className="text-xs sm:text-sm text-gray-400 font-medium text-center">
+                Склад сегментів
             </p>
           </div>
-          <div className="flex-1 flex flex-col items-center justify-center gap-10">
-            <div className="relative w-full aspect-square max-w-[240px]">
+          <div className="flex-1 flex flex-col items-center justify-center gap-6 sm:gap-10">
+            <div className="relative w-full aspect-square max-w-[180px] sm:max-w-[240px]">
                 <DonutChart
                   className="w-full h-full"
                   data={donutData}
@@ -365,9 +378,9 @@ export function MainChartsGrid() {
                   }}
                 />
             </div>
-            <div className="w-full max-h-[120px] overflow-y-auto px-4 scrollbar-hide">
+            <div className="w-full max-h-[100px] sm:max-h-[120px] overflow-y-auto px-2 sm:px-4 scrollbar-hide">
                 <Legend
-                  className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3"
+                  className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:gap-x-6 sm:gap-y-3"
                   categories={donutData.map(d => d.name)}
                   colors={MODERN_PALETTE as any}
                 />
@@ -378,35 +391,35 @@ export function MainChartsGrid() {
 
       {/* ─── Row 3: Growth Analysis (YoY) ─── */}
       {yoyData.length > 0 && currentYearNum && prevYearNum && (
-         <Card className="p-10 border-none shadow-xl shadow-black/[0.02]">
-            <div className="flex items-center justify-between mb-8">
+         <Card className="p-5 sm:p-8 lg:p-10 border-none shadow-xl shadow-black/[0.02]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
                 <div className="space-y-1">
-                  <Title className="text-xl font-bold !text-gray-900 tracking-tight">
+                  <Title className="text-lg sm:text-xl font-bold !text-gray-900 tracking-tight">
                     {yoyTitle}
                   </Title>
-                  <p className="text-sm text-gray-400 font-medium">
+                  <p className="text-xs sm:text-sm text-gray-400 font-medium">
                     {yoySubtitle}
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-emerald-300" />
-                        <span className="text-[11px] font-bold text-gray-500">{currentYearNum}</span>
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-300" />
+                        <span className="text-[10px] sm:text-[11px] font-bold text-gray-500">{currentYearNum}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-orange-300" />
-                        <span className="text-[11px] font-bold text-gray-500">{prevYearNum}</span>
+                        <div className="w-2.5 h-2.5 rounded-full bg-orange-300" />
+                        <span className="text-[10px] sm:text-[11px] font-bold text-gray-500">{prevYearNum}</span>
                     </div>
                 </div>
             </div>
             <div className="w-full">
               <BarChart
-                className="h-[400px] mt-4"
+                className="h-[300px] sm:h-[400px] mt-4"
                 data={yoyData}
                 index="name"
                 categories={[String(currentYearNum), String(prevYearNum)]}
                 colors={['emerald', 'orange']}
-                yAxisWidth={150}
+                yAxisWidth={isMobile ? 60 : 150}
                 layout={isDrillDown ? "horizontal" : "vertical"}
                 showAnimation={false}
                 showGridLines={false}

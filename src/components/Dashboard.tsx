@@ -33,6 +33,7 @@ export function Dashboard() {
   } = useDashboardStore();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [isLibraryOpen, setIsLibraryOpen] = React.useState(false);
 
   const handleViewSample = async () => {
     const data = generateMockData();
@@ -70,17 +71,24 @@ export function Dashboard() {
     <div className="flex h-screen w-full bg-[#F8F9FA] overflow-hidden relative" translate="no">
       <DashboardSidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
 
-      {isMobileMenuOpen && (
+      {/* Main Overlay for sidebars */}
+      {(isMobileMenuOpen || isLibraryOpen) && (
         <div
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 lg:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
+          onClick={() => {
+            setIsMobileMenuOpen(false);
+            setIsLibraryOpen(false);
+          }}
         />
       )}
 
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        <DashboardHeader onOpenMenu={() => setIsMobileMenuOpen(true)} />
+        <DashboardHeader 
+            onOpenMenu={() => setIsMobileMenuOpen(true)} 
+            onOpenLibrary={() => setIsLibraryOpen(true)}
+        />
 
-        <div className="flex-1 overflow-y-auto px-8 pt-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-6">
           {!dataLoaded ? (
             <div className="h-full flex flex-col items-center justify-center gap-6 pb-20">
               <div className="p-8 bg-white rounded-3xl border border-gray-100 shadow-xl flex flex-col items-center gap-4 max-w-md text-center">
@@ -143,7 +151,7 @@ export function Dashboard() {
         </div>
       </main>
 
-      <ReportLibrary />
+      <ReportLibrary isOpen={isLibraryOpen} onClose={() => setIsLibraryOpen(false)} />
     </div>
   );
 }
